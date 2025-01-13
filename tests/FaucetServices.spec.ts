@@ -1,27 +1,20 @@
 import 'mocha';
-import sinon from 'sinon';
 import { expect } from 'chai';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import crypto from 'crypto';
-import { bindTestStubs, unbindTestStubs, loadDefaultTestConfig, awaitSleepPromise } from './common';
-import { ServiceManager } from '../src/common/ServiceManager';
-import { FaucetDatabase } from '../src/db/FaucetDatabase';
-import { ModuleHookAction, ModuleManager } from '../src/modules/ModuleManager';
-import { SessionManager } from '../src/session/SessionManager';
-import { faucetConfig } from '../src/config/FaucetConfig';
-import { FaucetError } from '../src/common/FaucetError';
-import { FaucetSession, FaucetSessionStatus } from '../src/session/FaucetSession';
-import { MODULE_CLASSES } from '../src/modules/modules';
-import { FaucetProcess } from '../src/common/FaucetProcess';
-import { BaseModule } from '../src/modules/BaseModule';
-import { FakeProvider } from './stubs/FakeProvider';
-import { IEnsNameConfig } from '../src/modules/ensname/EnsNameConfig';
-import { IIPInfo } from '../src/modules/ipinfo/IPInfoResolver';
-import { FaucetStatsLog } from '../src/services/FaucetStatsLog';
-import { ClaimTxStatus, EthClaimManager } from '../src/eth/EthClaimManager';
-import { FaucetStatus, FaucetStatusLevel } from '../src/services/FaucetStatus';
+import YAML from 'yaml';
+import { bindTestStubs, unbindTestStubs, loadDefaultTestConfig, awaitSleepPromise } from './common.js';
+import { ServiceManager } from '../src/common/ServiceManager.js';
+import { ModuleHookAction, ModuleManager } from '../src/modules/ModuleManager.js';
+import { SessionManager } from '../src/session/SessionManager.js';
+import { faucetConfig } from '../src/config/FaucetConfig.js';
+import { FaucetSession, FaucetSessionStatus } from '../src/session/FaucetSession.js';
+import { IIPInfo } from '../src/modules/ipinfo/IPInfoResolver.js';
+import { FaucetStatsLog } from '../src/services/FaucetStatsLog.js';
+import { ClaimTxStatus, EthClaimManager } from '../src/eth/EthClaimManager.js';
+import { FaucetStatus, FaucetStatusLevel } from '../src/services/FaucetStatus.js';
 
 
 describe("Faucet Services", () => {
@@ -192,13 +185,13 @@ describe("Faucet Services", () => {
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
 
-      let status = statusSvc.getFaucetStatus(null);
+      let status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(0, "unexpected number of status entries");
 
-      fs.writeFileSync(faucetConfig.faucetStatus.json, JSON.stringify("test message 1"));
-      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(null).status.length > 0);
+      fs.writeFileSync(faucetConfig.faucetStatus.json as string, JSON.stringify("test message 1"));
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
 
-      status = statusSvc.getFaucetStatus(null);
+      status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(1, "unexpected number of status entries");
       expect(status.status[0].level).to.equal("info", "unexpected faucet status: invalid level in status 1");
       expect(status.status[0].text).to.equal("test message 1", "unexpected faucet status: invalid text in status 1");
@@ -211,8 +204,9 @@ describe("Faucet Services", () => {
       };
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
+      statusSvc.initialize();
 
-      let status = statusSvc.getFaucetStatus(null);
+      let status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(0, "unexpected number of status entries");
 
       let testStatusEntry = {
@@ -222,10 +216,10 @@ describe("Faucet Services", () => {
         "ishtml": true,
         "level": "warn",
       };
-      fs.writeFileSync(faucetConfig.faucetStatus.json, JSON.stringify(testStatusEntry));
-      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(null).status.length > 0);
+      fs.writeFileSync(faucetConfig.faucetStatus.json as string, JSON.stringify(testStatusEntry));
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
 
-      status = statusSvc.getFaucetStatus(null);
+      status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(1, "unexpected number of status entries");
       expect(status.status[0].level).to.equal("warn", "unexpected faucet status: invalid level in status 1");
       expect(status.status[0].text).to.equal("Test status.", "unexpected faucet status: invalid text in status 1");
@@ -241,7 +235,7 @@ describe("Faucet Services", () => {
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
 
-      let status = statusSvc.getFaucetStatus(null);
+      let status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(0, "unexpected number of status entries");
 
       let testStatusEntries = [
@@ -262,8 +256,8 @@ describe("Faucet Services", () => {
           }
         }
       ];
-      fs.writeFileSync(faucetConfig.faucetStatus.json, JSON.stringify(testStatusEntries));
-      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(null).status.length > 0);
+      fs.writeFileSync(faucetConfig.faucetStatus.json as string, JSON.stringify(testStatusEntries));
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
 
       status = statusSvc.getFaucetStatus("1.0.20");
       expect(status.status.length).to.equal(2, "unexpected number of status entries");
@@ -285,20 +279,97 @@ describe("Faucet Services", () => {
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
 
-      let status = statusSvc.getFaucetStatus(null);
+      let status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(0, "unexpected number of status entries");
 
-      fs.writeFileSync(faucetConfig.faucetStatus.json, "not {] - json ! :>");
-      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(null).status.length > 0);
+      fs.writeFileSync(faucetConfig.faucetStatus.json as string, "not {] - json ! :>");
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
 
-      status = statusSvc.getFaucetStatus(null);
+      status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(0, "unexpected number of status entries");
     });
 
-    it("Check status filter: active session", async () => {
+    it("Check loading status from yaml file (array of entries)", async () => {
       faucetConfig.faucetStatus = {
-        json: tmpFile("powfaucet-", "-status.txt"),
+        yaml: tmpFile("powfaucet-", "-status.txt"),
+        refresh: 0.2,
       };
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(0, "unexpected number of status entries");
+
+      let testStatusEntries = [
+        {
+          "key": "test2",
+          "prio": 5,
+          "text": "Test status 2.",
+          "ishtml": true,
+          "level": "warn",
+        },
+        {
+          "key": "test3",
+          "prio": 2,
+          "text": "Test3.",
+          "level": "error",
+          "filter": {
+            "lt_version": "1.0.50"
+          }
+        }
+      ];
+      fs.writeFileSync(faucetConfig.faucetStatus.yaml as string, YAML.stringify(testStatusEntries));
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
+
+      status = statusSvc.getFaucetStatus("1.0.20");
+      expect(status.status.length).to.equal(2, "unexpected number of status entries");
+      expect(status.status[0].level).to.equal("error", "unexpected faucet status: invalid level in status 1");
+      expect(status.status[0].text).to.equal("Test3.", "unexpected faucet status: invalid text in status 1");
+      expect(!!status.status[0].ishtml).to.equal(false, "unexpected faucet status: invalid ishtml in status 1");
+      expect(status.status[0].prio).to.equal(2, "unexpected faucet status: invalid prio in status 1");
+      expect(status.status[1].level).to.equal("warn", "unexpected faucet status: invalid level in status 2");
+      expect(status.status[1].text).to.equal("Test status 2.", "unexpected faucet status: invalid text in status 2");
+      expect(status.status[1].ishtml).to.equal(true, "unexpected faucet status: invalid ishtml in status 2");
+      expect(status.status[1].prio).to.equal(5, "unexpected faucet status: invalid prio in status 2");
+    });
+
+    it("Check loading status from yaml file (invalid yaml)", async () => {
+      faucetConfig.faucetStatus = {
+        yaml: tmpFile("powfaucet-", "-status.txt"),
+        refresh: 0.2,
+      };
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(0, "unexpected number of status entries");
+
+      fs.writeFileSync(faucetConfig.faucetStatus.yaml as string, "xy: not {] - yaml ! :>\n**ABC");
+      await awaitSleepPromise(500, () => statusSvc.getFaucetStatus(undefined).status.length > 0);
+
+      status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(0, "unexpected number of status entries");
+    });
+
+    it("Check dynamic status management", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(0, "unexpected number of status entries (1)");
+
+      statusSvc.setFaucetStatus("test1", "Test status 1", FaucetStatusLevel.ERROR, 5);
+
+      status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(1, "unexpected number of status entries (2)");
+
+      statusSvc.setFaucetStatus("test1", "", FaucetStatusLevel.ERROR, 5);
+
+      status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(0, "unexpected number of status entries (3)");
+    });
+
+    it("Check status filter: active session", async () => {
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
       let statusEntry1 = statusSvc.setFaucetStatus("test1", "Test status 1", FaucetStatusLevel.ERROR, 5);
@@ -310,15 +381,12 @@ describe("Faucet Services", () => {
         session: false,
       };
 
-      let status = statusSvc.getFaucetStatus(null);
+      let status = statusSvc.getFaucetStatus(undefined);
       expect(status.status.length).to.equal(1, "unexpected number of status entries");
       expect(status.status[0].text).to.equal("Test status 2", "unexpected faucet status: invalid text");
     });
 
     it("Check status filter: client version", async () => {
-      faucetConfig.faucetStatus = {
-        json: tmpFile("powfaucet-", "-status.txt"),
-      };
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
       let statusEntry1 = statusSvc.setFaucetStatus("test1", "Test status 1", FaucetStatusLevel.ERROR, 5);
@@ -336,12 +404,10 @@ describe("Faucet Services", () => {
     });
 
     it("Check status filter: ipinfo.hosting / proxy", async () => {
-      faucetConfig.faucetStatus = {
-        json: tmpFile("powfaucet-", "-status.txt"),
-      };
       let statusSvc = ServiceManager.GetService(FaucetStatus);
       statusSvc.initialize();
       let statusEntry1 = statusSvc.setFaucetStatus("test1", "Test status 1", FaucetStatusLevel.ERROR, 10);
+      statusEntry1.prio = 0;
       statusEntry1.filter = {
         hosting: false,
       };
@@ -369,7 +435,96 @@ describe("Faucet Services", () => {
       expect(status.status.length).to.equal(1, "unexpected number of status entries");
     });
 
+    it("Check status filter: gt_hashrate", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+      let statusEntry1 = statusSvc.setFaucetStatus("test1", "Test status 1", FaucetStatusLevel.ERROR, 10);
+      statusEntry1.filter = {
+        gt_hashrate: 10000,
+      };
+      let statusEntry2 = statusSvc.setFaucetStatus("test2", "Test status 2", FaucetStatusLevel.ERROR, 5);
+      statusEntry2.filter = {
+        gt_hashrate: 1000,
+      };
+
+      await ServiceManager.GetService(ModuleManager).initialize();
+      ServiceManager.GetService(ModuleManager).addActionHook(null, ModuleHookAction.SessionStart, 100, "test-task", (session: FaucetSession, userInput: any) => {
+        session.addBlockingTask("test", "test", 1);
+      });
+      let sessionManager = ServiceManager.GetService(SessionManager);
+      let testSession = await sessionManager.createSession("8.8.8.8", { addr: "0x0000000000000000000000000000000000001337" });
+      testSession.setSessionData("pow.hashrate", 5000);
+      
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(1, "unexpected number of status entries");
+      expect(status.status[0].text).to.equal("Test status 2", "unexpected faucet status: invalid text");
+    });
+
+    it("Check status placeholder: {hashrate} (0 H/s)", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+      statusSvc.setFaucetStatus("test1", "Test hashrate: {hashrate}", FaucetStatusLevel.ERROR, 5);
+
+      statusSvc.getFaucetStatus(undefined);
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(1, "unexpected number of status entries");
+      expect(status.status[0].text).to.equal("Test hashrate: 0 H/s", "unexpected faucet status: invalid text");
+    });
+
+    it("Check status placeholder: {hashrate} (5 kH/s)", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+      statusSvc.setFaucetStatus("test1", "Test hashrate: {hashrate}", FaucetStatusLevel.ERROR, 5);
+
+      await ServiceManager.GetService(ModuleManager).initialize();
+      ServiceManager.GetService(ModuleManager).addActionHook(null, ModuleHookAction.SessionStart, 100, "test-task", (session: FaucetSession, userInput: any) => {
+        session.addBlockingTask("test", "test", 1);
+      });
+      let sessionManager = ServiceManager.GetService(SessionManager);
+      let testSession = await sessionManager.createSession("8.8.8.8", { addr: "0x0000000000000000000000000000000000001337" });
+      testSession.setSessionData("pow.hashrate", 5000);
+      
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(1, "unexpected number of status entries");
+      expect(status.status[0].text).to.equal("Test hashrate: 5 kH/s", "unexpected faucet status: invalid text");
+    });
+
+    it("Check status placeholder: {unknown}", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+      statusSvc.setFaucetStatus("test1", "Test val: {unknown}", FaucetStatusLevel.ERROR, 5);
+      
+      let status = statusSvc.getFaucetStatus(undefined);
+      expect(status.status.length).to.equal(1, "unexpected number of status entries");
+      expect(status.status[0].text).to.equal("Test val: {unknown}", "unexpected faucet status: invalid text");
+    });
+
+    it("Check dynamic status notifications from ipinfo module", async () => {
+      let statusSvc = ServiceManager.GetService(FaucetStatus);
+      statusSvc.initialize();
+      
+      await ServiceManager.GetService(ModuleManager).initialize();
+      ServiceManager.GetService(ModuleManager).addActionHook(null, ModuleHookAction.SessionStart, 100, "test-task", (session: FaucetSession, userInput: any) => {
+        session.addBlockingTask("test", "test", 1);
+      });
+      let sessionManager = ServiceManager.GetService(SessionManager);
+      let testSession = await sessionManager.createSession("8.8.8.8", { addr: "0x0000000000000000000000000000000000001337" });
+      testSession.setSessionModuleRef("ipinfo.restriction.data", {
+        messages: [
+          { notify: false, text: "test0" },
+          { notify: true, text: "test1" },
+          { notify: "info", text: "test2" },
+        ]
+      });
+      
+      let status = statusSvc.getFaucetStatus(undefined, testSession);
+      expect(status.status.length).to.equal(2, "unexpected number of status entries");
+      expect(status.status[0].text).to.equal("test1", "unexpected faucet status 1: invalid text");
+      expect(status.status[0].level).to.equal("warn", "unexpected faucet status 1: invalid level");
+      expect(status.status[1].text).to.equal("test2", "unexpected faucet status 2: invalid text");
+      expect(status.status[1].level).to.equal("info", "unexpected faucet status 2: invalid level");
+    });
+
   });
 
-  
 });

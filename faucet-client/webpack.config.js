@@ -23,8 +23,8 @@ var webpackModuleConfigs = [
     module: {
       rules: [
         {
-          test: /\.css$/,
-          use: [MiniCssExtractPlugin.loader, 'css-loader']
+          test: /\.s?css$/,
+          use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader']
         }
       ]
     },
@@ -56,7 +56,13 @@ var webpackModuleConfigs = [
       path: path.join(__dirname, '/dist'),
       filename: 'powfaucet-worker-a2.js',
     },
-
+  },
+  {
+    entry: './src/worker/worker-nickminer',
+    output: {
+      path: path.join(__dirname, '/dist'),
+      filename: 'powfaucet-worker-nm.js',
+    },
   },
 ];
 

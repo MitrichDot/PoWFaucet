@@ -1,11 +1,11 @@
 import assert from 'node:assert';
 import { isMainThread, parentPort, Worker } from 'worker_threads';
-import { FaucetWorkers } from '../../../common/FaucetWorker';
-import { ServiceManager } from '../../../common/ServiceManager';
-import { PromiseDfd } from '../../../utils/PromiseDfd';
-import { PoWHashAlgo } from '../PoWConfig';
-import { PoWModule } from '../PoWModule';
-import { IPoWValidatorValidateRequest } from './IPoWValidator';
+import { FaucetWorkers } from '../../../common/FaucetWorker.js';
+import { ServiceManager } from '../../../common/ServiceManager.js';
+import { PromiseDfd } from '../../../utils/PromiseDfd.js';
+import { PoWHashAlgo } from '../PoWConfig.js';
+import { PoWModule } from '../PoWModule.js';
+import { IPoWValidatorValidateRequest } from './IPoWValidator.js';
 
 export class PoWValidator {
   private module: PoWModule;
@@ -31,12 +31,13 @@ export class PoWValidator {
     return Object.keys(this.validateQueue).length;
   }
 
-  public validateShare(shareId: string, nonces: number[], preimg: string): Promise<boolean> {
+  public validateShare(shareId: string, nonce: number, preimg: string, data: string): Promise<boolean> {
     let resDfd = new PromiseDfd<boolean>();
     let config = this.module.getModuleConfig();
     let req: IPoWValidatorValidateRequest = {
       shareId: shareId,
-      nonces: nonces,
+      nonce: nonce,
+      data: data,
       preimage: preimg,
       algo: config.powHashAlgo,
       params: (() => {
@@ -47,6 +48,8 @@ export class PoWValidator {
             return config.powCryptoNightParams;
           case PoWHashAlgo.ARGON2: 
             return config.powArgon2Params;
+          case PoWHashAlgo.NICKMINER: 
+            return config.powNickMinerParams;
         }
       })(),
       difficulty: config.powDifficulty,

@@ -1,8 +1,9 @@
 import { TypedEmitter } from 'tiny-typed-emitter';
 import { getPoWParamsStr } from '../utils/PoWParamsHelper';
-import { PoWHashAlgo, PoWParams } from "../common/FaucetConfig";
+import { PoWParams } from "../common/FaucetConfig";
 import { PoWSession } from "./PoWSession";
 import { FaucetTime } from '../common/FaucetTime';
+import { PoWHashAlgo, PoWMinerWorkerSrc } from '../types/PoWMinerSrc';
 
 export interface IPoWMinerOptions {
   time: FaucetTime;
@@ -10,13 +11,8 @@ export interface IPoWMinerOptions {
   workerSrc: PoWMinerWorkerSrc;
   powParams: PoWParams;
   difficulty: number;
-  nonceCount: number;
   hashrateLimit: number;
 }
-
-export type PoWMinerWorkerSrc = {
-  [algo in PoWHashAlgo]: string;
-};
 
 interface IPoWMinerSettings {
   workerCount: number;
@@ -44,29 +40,43 @@ export interface IPoWMinerStats {
 }
 
 export interface IPoWMinerShare {
-  nonces: number[];
+  nonce: number;
+  data: string;
   params: string;
   hashrate: number;
+}
+
+export interface IPoWMinerNonce {
+  nonce: number;
+  data: string;
 }
 
 export interface IPoWMinerVerification {
   shareId: string;
   preimage: string;
-  nonces: number[];
+  nonce: number;
+  data: string;
+}
+
+export interface IPoWMinerVerificationResult {
+  shareId: string;
+  params: string;
+  isValid: boolean;
 }
 
 interface PoWMinerEvents {
   'stats': (stats: IPoWMinerStats) => void;
 }
 
-
 export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
   private options: IPoWMinerOptions;
   private settings: IPoWMinerSettings;
+  private workerInitCode: string;
+  private workerSrc: {[algo: string]: Promise<string>} = {};
   private workers: IPoWMinerWorker[];
   private verifyWorker: IPoWMinerWorker;
   private powParamsStr: string;
-  private nonceQueue: number[];
+  private nonceQueue: IPoWMinerNonce[];
   private lastSaveNonce: number;
   private updateStatsTimer: NodeJS.Timeout;
   private totalShares: number;
@@ -77,6 +87,19 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
   public constructor(options: IPoWMinerOptions) {
     super();
     this.options = options;
+    this.workerInitCode = window.URL.createObjectURL(
+      new Blob([
+        'function onInitMsg(evt) {',
+          'if(!evt.data || evt.data.action !== "workerCode") return;',
+          'removeEventListener("message", onInitMsg);',
+          'importScripts(evt.data.data);',
+        '}',
+        'addEventListener("message", onInitMsg);',
+        'postMessage({ action: "preinit" });',
+      ],{
+        type:'text/javascript'
+      })
+    );
     this.workers = [];
     this.powParamsStr = getPoWParamsStr(options.powParams, options.difficulty);
     this.totalShares = 0;
@@ -101,9 +124,7 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
     }
   }
 
-  public setPoWParams(params: PoWParams, difficulty: number, nonceCount: number) {
-    this.options.nonceCount = nonceCount;
-
+  public setPoWParams(params: PoWParams, difficulty: number) {
     let powParamsStr = getPoWParamsStr(params, difficulty);
     if(this.powParamsStr === powParamsStr)
       return;
@@ -152,6 +173,34 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
     return this.settings.workerCount;
   }
 
+  private getWorkerCode(algo: PoWHashAlgo): Promise<string> {
+    if(this.workerSrc[algo])
+      return this.workerSrc[algo];
+
+    let workerSrc = this.options.workerSrc[algo];
+    let isLocalUrl = !!workerSrc.match(/^\//);
+    if(!isLocalUrl) {
+      let url = new URL(workerSrc)
+      isLocalUrl = url.origin === location.origin;
+    }
+
+    if(isLocalUrl) {
+      if(workerSrc.match(/^\//)) {
+        workerSrc = location.origin + workerSrc;
+      }
+      this.workerSrc[algo] = Promise.resolve(workerSrc);
+    } else {
+      this.workerSrc[algo] = fetch(workerSrc).then((rsp) => rsp.text()).then((code => {
+        return window.URL.createObjectURL(
+          new Blob([ code ],{
+            type:'text/javascript'
+          })
+        );
+      }));
+    }
+    return this.workerSrc[algo];
+  }
+
   private loadSettings() {
     this.settings = {
       workerCount: navigator.hardwareConcurrency || 4,
@@ -169,7 +218,7 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
     localStorage.setItem("powMinerSettings", JSON.stringify(this.settings));
   }
 
-  private startStopWorkers() {
+  private async startStopWorkers() {
     while(this.workers.length > this.settings.workerCount) {
       // stop worker
       this.stopWorker();
@@ -186,13 +235,9 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
   }
 
   private startWorker(): IPoWMinerWorker {
-    let workerSrc = this.options.workerSrc[this.options.powParams.a];
-    if(!workerSrc)
-      throw "No worker src for '" + this.options.powParams.a + "' algorithm";
-    
     let worker: IPoWMinerWorker = {
       id: this.workers.length,
-      worker: new Worker(workerSrc),
+      worker: new Worker(this.workerInitCode),
       ready: false,
       stats: [],
       lastNonce: 0,
@@ -222,6 +267,9 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
 
     //console.log(evt);
     switch(msg.action) {
+      case "preinit":
+        this.onWorkerPreInit(worker);
+        break;
       case "init":
         this.onWorkerInit(worker);
         break;
@@ -235,6 +283,15 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
         this.onWorkerVerifyResult(worker, msg.data);
         break;
     }
+  }
+
+  private async onWorkerPreInit(worker: IPoWMinerWorker) {
+    // preinit stage for cors workers, send worker code to worker
+    let workerCode = await this.getWorkerCode(this.options.powParams.a)
+    worker.worker.postMessage({
+      action: "workerCode",
+      data: workerCode
+    });
   }
 
   private onWorkerInit(worker: IPoWMinerWorker) {
@@ -280,9 +337,12 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
 
     let insertIdx = 0;
     let queueLen = this.nonceQueue.length;
-    while(insertIdx < queueLen && nonce.nonce > this.nonceQueue[insertIdx])
+    while(insertIdx < queueLen && nonce.nonce > this.nonceQueue[insertIdx].nonce)
       insertIdx++;
-    this.nonceQueue.splice(insertIdx, 0, nonce.nonce);
+    this.nonceQueue.splice(insertIdx, 0, {
+      nonce: nonce.nonce,
+      data: nonce.data,
+    });
 
     this.processNonceQueue();
   }
@@ -303,25 +363,25 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
 
     let saveNonces = 0;
     let queueLen = this.nonceQueue.length;
-    if(queueLen < this.options.nonceCount)
-      return;
 
     for(let i = 0; i < queueLen; i++) {
-      if(this.nonceQueue[i] > saveNonce)
+      if(this.nonceQueue[i].nonce > saveNonce)
         break;
       saveNonces++;
     }
 
-    while(saveNonces >= this.options.nonceCount) {
+    while(saveNonces >= 1) {
+      let nonce = this.nonceQueue.splice(0, 1)[0];
       let share: IPoWMinerShare = {
-        nonces: this.nonceQueue.splice(0, this.options.nonceCount),
+        nonce: nonce.nonce,
+        data: nonce.data,
         params: this.powParamsStr,
         hashrate: this.latestStats ? this.latestStats.hashRate : 0,
       };
       
       this.totalShares++;
       this.lastShareTime = this.options.time.getSyncedDate();
-      saveNonces -= this.options.nonceCount;
+      saveNonces -= 1;
       this.options.session.submitShare(share);
     }
   }
@@ -338,7 +398,9 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
     
     let nonceLimit =  sessionAge * this.options.hashrateLimit;
     let nonceCount = nonceLimit - this.options.session.getLastNonce();
-    if(requestedRefill > nonceCount)
+    if(nonceCount <= 0)
+      requestedRefill = requestedRefill > 0 ? 1 : 0;
+    else if(requestedRefill > nonceCount)
       requestedRefill = nonceCount;
     
     return requestedRefill;
@@ -424,7 +486,7 @@ export class PoWMiner extends TypedEmitter<PoWMinerEvents> {
     });
   }
 
-  private onWorkerVerifyResult(worker: IPoWMinerWorker, result: any) {
+  private onWorkerVerifyResult(worker: IPoWMinerWorker, result: IPoWMinerVerificationResult) {
     this.options.session.submitVerifyResult(result);
   }
 

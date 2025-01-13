@@ -1,18 +1,18 @@
 import * as crypto from "crypto";
-import { ServiceManager } from "../../common/ServiceManager";
-import { FaucetSession, FaucetSessionStatus } from "../../session/FaucetSession";
-import { BaseModule } from "../BaseModule";
-import { ModuleHookAction } from "../ModuleManager";
-import { defaultConfig, IPoWConfig, PoWHashAlgo } from './PoWConfig';
-import { FaucetHttpServer } from "../../webserv/FaucetHttpServer";
+import { ServiceManager } from "../../common/ServiceManager.js";
+import { FaucetSession, FaucetSessionStatus } from "../../session/FaucetSession.js";
+import { BaseModule } from "../BaseModule.js";
+import { ModuleHookAction } from "../ModuleManager.js";
+import { defaultConfig, IPoWConfig, PoWHashAlgo } from './PoWConfig.js';
+import { FaucetHttpServer } from "../../webserv/FaucetHttpServer.js";
 import { IncomingMessage } from "http";
 import { WebSocket } from 'ws';
-import { PoWValidator } from "./validator/PoWValidator";
-import { SessionManager } from "../../session/SessionManager";
-import { PoWClient } from "./PoWClient";
-import { PoWSession } from "./PoWSession";
-import { FaucetError } from "../../common/FaucetError";
-import { FaucetLogLevel, FaucetProcess } from "../../common/FaucetProcess";
+import { PoWValidator } from "./validator/PoWValidator.js";
+import { SessionManager } from "../../session/SessionManager.js";
+import { PoWClient } from "./PoWClient.js";
+import { PoWSession } from "./PoWSession.js";
+import { FaucetError } from "../../common/FaucetError.js";
+import { FaucetLogLevel, FaucetProcess } from "../../common/FaucetProcess.js";
 
 export class PoWModule extends BaseModule<IPoWConfig> {
   protected readonly moduleDefaultConfig = defaultConfig;
@@ -93,6 +93,17 @@ export class PoWModule extends BaseModule<IPoWConfig> {
           l: this.moduleConfig.powArgon2Params.keyLength,
         };
         break;
+      case PoWHashAlgo.NICKMINER:
+        powParams = {
+          a: PoWHashAlgo.NICKMINER,
+          i: this.moduleConfig.powNickMinerParams.hash,
+          r: this.moduleConfig.powNickMinerParams.sigR,
+          v: this.moduleConfig.powNickMinerParams.sigV,
+          c: this.moduleConfig.powNickMinerParams.count,
+          s: this.moduleConfig.powNickMinerParams.suffix,
+          p: this.moduleConfig.powNickMinerParams.prefix,
+        };
+        break;
     }
 
     clientConfig[this.moduleName] = {
@@ -100,12 +111,13 @@ export class PoWModule extends BaseModule<IPoWConfig> {
       powIdleTimeout: this.moduleConfig.powIdleTimeout,
       powParams: powParams,
       powDifficulty: this.moduleConfig.powDifficulty,
-      powNonceCount: this.moduleConfig.powNonceCount,
       powHashrateLimit: this.moduleConfig.powHashrateSoftLimit,
     };
   }
 
   private async processSessionInfo(session: FaucetSession, moduleState: any): Promise<void> {
+    if(session.getSessionData<Array<string>>("skip.modules", []).indexOf(this.moduleName) !== -1)
+      return;
     if(session.getSessionStatus() !== FaucetSessionStatus.RUNNING)
       return;
     let powSession = this.getPoWSession(session);
@@ -130,11 +142,15 @@ export class PoWModule extends BaseModule<IPoWConfig> {
   }
 
   private async processSessionRestore(session: FaucetSession): Promise<void> {
+    if(session.getSessionData<Array<string>>("skip.modules", []).indexOf(this.moduleName) !== -1)
+      return;
     let powSession = this.getPoWSession(session);
     this.resetSessionIdleTimer(powSession);
   }
 
   private async processSessionComplete(session: FaucetSession): Promise<void> {
+    if(session.getSessionData<Array<string>>("skip.modules", []).indexOf(this.moduleName) !== -1)
+      return;
     setTimeout(() => {
       let powSession = this.getPoWSession(session);
       if(session.getSessionStatus() === FaucetSessionStatus.FAILED)
@@ -151,12 +167,14 @@ export class PoWModule extends BaseModule<IPoWConfig> {
 
   private async processPoWClientWebSocket(req: IncomingMessage, ws: WebSocket, remoteIp: string): Promise<void> {
     let sessionId: string;
+    let clientVersion: string;
     try {
       let urlParts = req.url.split("?");
       let url = new URLSearchParams(urlParts[1]);
       if(!(sessionId = url.get("session"))) {
         throw "session id missing";
       }
+      clientVersion = url.get("cliver");
     } catch(ex) {
       ws.send(JSON.stringify({
         action: "error",
@@ -192,6 +210,8 @@ export class PoWModule extends BaseModule<IPoWConfig> {
       ws.close();
       return;
     }
+
+    session.setSessionData("cliver", clientVersion);
 
     let powSession = this.getPoWSession(session);
     let powClient: PoWClient;
@@ -259,6 +279,15 @@ export class PoWModule extends BaseModule<IPoWConfig> {
         "|" + this.moduleConfig.powArgon2Params.memoryCost +
         "|" + this.moduleConfig.powArgon2Params.parallelization +
         "|" + this.moduleConfig.powArgon2Params.keyLength +
+        "|" + this.moduleConfig.powDifficulty;
+      case PoWHashAlgo.NICKMINER:
+        return PoWHashAlgo.NICKMINER.toString() +
+        "|" + this.moduleConfig.powNickMinerParams.hash +
+        "|" + this.moduleConfig.powNickMinerParams.sigR +
+        "|" + this.moduleConfig.powNickMinerParams.sigV +
+        "|" + this.moduleConfig.powNickMinerParams.count +
+        "|" + this.moduleConfig.powNickMinerParams.suffix +
+        "|" + this.moduleConfig.powNickMinerParams.prefix +
         "|" + this.moduleConfig.powDifficulty;
     }
   }

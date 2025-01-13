@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { MessagePort } from "worker_threads";
-import { base64ToHex } from "../../../utils/ConvertHelpers";
-import { IPoWValidatorValidateRequest } from "./IPoWValidator";
-import { IPoWArgon2Params, IPoWCryptoNightParams, IPoWSCryptParams, PoWCryptoParams, PoWHashAlgo } from '../PoWConfig';
+import { base64ToHex } from "../../../utils/ConvertHelpers.js";
+import { IPoWValidatorValidateRequest } from "./IPoWValidator.js";
+import { IPoWArgon2Params, IPoWCryptoNightParams, IPoWNickMinerParams, IPoWSCryptParams, PoWCryptoParams, PoWHashAlgo } from '../PoWConfig.js';
 
 export type PoWHashFn = (nonceHex: string, preimgHex: string, params: PoWCryptoParams) => string;
 
@@ -30,9 +30,9 @@ export class PoWValidatorWorker {
     switch(algo) {
       case PoWHashAlgo.SCRYPT:
         hashFn = await (async () => {
-          let module = await import("../../../../libs/scrypt_wasm");
-          await module.getScryptReadyPromise();
-          let scrypt = module.getScrypt();
+          let module = await import("../../../../libs/scrypt_wasm.cjs");
+          await module.default.getScryptReadyPromise();
+          let scrypt = module.default.getScrypt();
           return (nonce, preimg, params: IPoWSCryptParams) => {
             return scrypt(nonce, preimg, params.cpuAndMemory, params.blockSize, params.parallelization, params.keyLength);
           };
@@ -40,9 +40,9 @@ export class PoWValidatorWorker {
         break;
       case PoWHashAlgo.CRYPTONIGHT:
         hashFn = await (async () => {
-          let module = await import("../../../../libs/cryptonight_wasm");
-          await module.getCryptoNightReadyPromise();
-          let cryptonight = module.getCryptoNight();
+          let module = await import("../../../../libs/cryptonight_wasm.cjs");
+          await module.default.getCryptoNightReadyPromise();
+          let cryptonight = module.default.getCryptoNight();
           return (nonce, preimg, params: IPoWCryptoNightParams) => {
             return cryptonight(preimg + nonce, params.algo, params.variant, params.height);
           };
@@ -50,11 +50,22 @@ export class PoWValidatorWorker {
         break;
       case PoWHashAlgo.ARGON2:
         hashFn = await (async () => {
-          let module = await import("../../../../libs/argon2_wasm");
-          await module.getArgon2ReadyPromise();
-          let argon2 = module.getArgon2();
+          let module = await import("../../../../libs/argon2_wasm.cjs");
+          await module.default.getArgon2ReadyPromise();
+          let argon2 = module.default.getArgon2();
           return (nonce, preimg, params: IPoWArgon2Params) => {
             return argon2(nonce, preimg, params.keyLength, params.timeCost, params.memoryCost, params.parallelization, params.type, params.version);
+          };
+        })();
+        break;
+      case PoWHashAlgo.NICKMINER:
+        hashFn = await (async () => {
+          let module = await import("../../../../libs/nickminer_wasm.cjs");
+          await module.default.getNickMinerReadyPromise();
+          let nickMiner = module.default.getNickMiner();
+          return (nonce, preimg, params: IPoWNickMinerParams) => {
+            nickMiner.miner_set_config(params.hash, params.sigR, params.sigV, params.suffix, params.prefix, params.count, preimg);
+            return nickMiner.miner_run(nonce);
           };
         })();
         break;
@@ -95,18 +106,23 @@ export class PoWValidatorWorker {
     if(!dmask)
       dmask = this.difficultyMasks[req.difficulty] = this.getDifficultyMask(req.difficulty);
 
-    let isValid = (req.nonces.length > 0);
-    for(var i = 0; i < req.nonces.length && isValid; i++) {
-      let nonceHex = req.nonces[i].toString(16);
-      if(nonceHex.length < 16) {
-        nonceHex = "0000000000000000".substring(0, 16 - nonceHex.length) + nonceHex;
-      }
+    let isValid = true;
+    let nonceHex = req.nonce?.toString(16) || "";
+    if(nonceHex.length < 16) {
+      nonceHex = "0000000000000000".substring(0, 16 - nonceHex.length) + nonceHex;
+    }
 
-      let hashHex = hashFn(
-        nonceHex, 
-        preimg, 
-        req.params
-      );
+    let hashHex = hashFn(
+      nonceHex, 
+      preimg, 
+      req.params
+    );
+
+    if (req.algo === PoWHashAlgo.NICKMINER) {
+      if(hashHex.substring(0, 2) != "0x" || parseInt(hashHex.substring(2, 4), 16) < req.difficulty || hashHex != req.data) {
+        isValid = false;
+      }
+    } else {
       let startOfHash = hashHex.substring(0, dmask.length);
       if(!(startOfHash <= dmask)) {
         isValid = false;

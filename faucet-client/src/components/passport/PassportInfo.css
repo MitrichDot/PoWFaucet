@@ -46,6 +46,11 @@
   white-space: pre;
 }
 
+.pow-boost-info .passport-details {
+  max-height: 600px;
+  overflow-x: auto;
+}
+
 .pow-boost-info .passport-details .row.details-header > div {
   padding: 0;
   font-weight: 600;
@@ -57,6 +62,10 @@
 
 .pow-boost-info .passport-manual-refresh {
   margin-top: 16px;
+}
+
+.pow-boost-info .passport-manual-refresh .passport-upload-input {
+  visibility: hidden;
 }
 
 .pow-boost-info .passport-manual-refresh .form-header {

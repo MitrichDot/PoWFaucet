@@ -1,13 +1,13 @@
-import { ServiceManager } from "../../common/ServiceManager";
-import { EthWalletManager } from "../../eth/EthWalletManager";
-import { FaucetSession } from "../../session/FaucetSession";
-import { BaseModule } from "../BaseModule";
-import { ModuleHookAction } from "../ModuleManager";
-import { defaultConfig, IFaucetBalanceConfig } from './FaucetBalanceConfig';
-import { ISessionRewardFactor } from "../../session/SessionRewardFactor";
-import { EthClaimManager } from "../../eth/EthClaimManager";
-import { faucetConfig } from "../../config/FaucetConfig";
-import { SessionManager } from "../../session/SessionManager";
+import { ServiceManager } from "../../common/ServiceManager.js";
+import { EthWalletManager } from "../../eth/EthWalletManager.js";
+import { FaucetSession } from "../../session/FaucetSession.js";
+import { BaseModule } from "../BaseModule.js";
+import { ModuleHookAction } from "../ModuleManager.js";
+import { defaultConfig, IFaucetBalanceConfig } from './FaucetBalanceConfig.js';
+import { ISessionRewardFactor } from "../../session/SessionRewardFactor.js";
+import { EthClaimManager } from "../../eth/EthClaimManager.js";
+import { faucetConfig } from "../../config/FaucetConfig.js";
+import { SessionManager } from "../../session/SessionManager.js";
 
 export class FaucetBalanceModule extends BaseModule<IFaucetBalanceConfig> {
   protected readonly moduleDefaultConfig = defaultConfig;
@@ -32,6 +32,8 @@ export class FaucetBalanceModule extends BaseModule<IFaucetBalanceConfig> {
   }
 
   private async processSessionRewardFactor(session: FaucetSession, rewardFactors: ISessionRewardFactor[]): Promise<void> {
+    if(session.getSessionData<Array<string>>("skip.modules", []).indexOf(this.moduleName) !== -1)
+      return;
     await this.refreshBalanceRestriction();
     if(this.balanceRestriction !== 100) {
       rewardFactors.push({

@@ -1,4 +1,4 @@
-import { IBaseModuleConfig } from "../BaseModule";
+import { IBaseModuleConfig } from "../BaseModule.js";
 
 export interface IRecurringLimitsConfig extends IBaseModuleConfig {
   limits: IRecurringLimitConfig[];
@@ -10,7 +10,10 @@ export interface IRecurringLimitConfig {
   duration: number;
   byAddrOnly?: true;
   byIPOnly?: true;
+  ip4Subnet?: number;
+  action?: string;
   message?: string;
+  rewards?: number;
 }
 
 export const defaultConfig: IRecurringLimitsConfig = {

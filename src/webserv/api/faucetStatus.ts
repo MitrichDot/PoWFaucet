@@ -1,14 +1,15 @@
-import { ServiceManager } from "../../common/ServiceManager";
-import { faucetConfig } from "../../config/FaucetConfig";
-import { FaucetDatabase } from "../../db/FaucetDatabase";
-import { EthClaimManager } from "../../eth/EthClaimManager";
-import { EthWalletManager } from "../../eth/EthWalletManager";
-import { EthWalletRefill } from "../../eth/EthWalletRefill";
-import { FaucetBalanceModule } from "../../modules/faucet-balance/FaucetBalanceModule";
-import { FaucetOutflowModule } from "../../modules/faucet-outflow/FaucetOutflowModule";
-import { ModuleManager } from "../../modules/ModuleManager";
-import { SessionManager } from "../../session/SessionManager";
-import { getHashedIp, getHashedSessionId } from "../../utils/HashedInfo";
+import { ServiceManager } from "../../common/ServiceManager.js";
+import { faucetConfig } from "../../config/FaucetConfig.js";
+import { FaucetDatabase } from "../../db/FaucetDatabase.js";
+import { EthClaimManager } from "../../eth/EthClaimManager.js";
+import { EthWalletManager } from "../../eth/EthWalletManager.js";
+import { EthWalletRefill } from "../../eth/EthWalletRefill.js";
+import { FaucetBalanceModule } from "../../modules/faucet-balance/FaucetBalanceModule.js";
+import { FaucetOutflowModule } from "../../modules/faucet-outflow/FaucetOutflowModule.js";
+import { ModuleManager } from "../../modules/ModuleManager.js";
+import { SessionManager } from "../../session/SessionManager.js";
+import { ISessionRewardFactor } from "../../session/SessionRewardFactor.js";
+import { getHashedIp, getHashedSessionId } from "../../utils/HashedInfo.js";
 
 export interface IClientClaimStatus {
   time: number;
@@ -37,6 +38,7 @@ export interface IClientSessionStatus {
   boost: any;
   connected: boolean;
   idle: number;
+  factors: ISessionRewardFactor[];
 }
 
 export interface IClientFaucetStatus {
@@ -125,6 +127,7 @@ export async function buildSessionStatus(unmasked?: boolean): Promise<IClientSes
       boost: session.data["passport.score"],
       connected: runningSession ? !!runningSession.getSessionModuleRef("pow.client") : null,
       idle: session.data["pow.idleTime"],
+      factors: session.data["reward.factors"],
     }
   });
 

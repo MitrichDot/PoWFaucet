@@ -1,20 +1,20 @@
-import { TransactionReceipt } from 'web3-core';
 import { WebSocket } from 'ws';
-import { faucetConfig } from "../config/FaucetConfig";
-import { FaucetLogLevel, FaucetProcess } from "../common/FaucetProcess";
-import { ServiceManager } from "../common/ServiceManager";
-import { EthWalletManager } from "./EthWalletManager";
-import { FaucetStatsLog } from "../services/FaucetStatsLog";
-import { FaucetDatabase } from "../db/FaucetDatabase";
-import { EthWalletRefill } from "./EthWalletRefill";
-import { FaucetSessionStatus, FaucetSessionStoreData } from "../session/FaucetSession";
-import { FaucetError } from '../common/FaucetError';
-import { ModuleHookAction, ModuleManager } from '../modules/ModuleManager';
-import { FaucetHttpServer } from '../webserv/FaucetHttpServer';
+import { faucetConfig } from "../config/FaucetConfig.js";
+import { FaucetLogLevel, FaucetProcess } from "../common/FaucetProcess.js";
+import { ServiceManager } from "../common/ServiceManager.js";
+import { EthWalletManager } from "./EthWalletManager.js";
+import { FaucetStatsLog } from "../services/FaucetStatsLog.js";
+import { FaucetDatabase } from "../db/FaucetDatabase.js";
+import { EthWalletRefill } from "./EthWalletRefill.js";
+import { FaucetSessionStatus, FaucetSessionStoreData } from "../session/FaucetSession.js";
+import { FaucetError } from '../common/FaucetError.js';
+import { ModuleHookAction, ModuleManager } from '../modules/ModuleManager.js';
+import { FaucetHttpServer } from '../webserv/FaucetHttpServer.js';
 import { IncomingMessage } from 'http';
-import { EthClaimNotificationClient, IEthClaimNotificationData } from './EthClaimNotificationClient';
-import { FaucetOutflowModule } from '../modules/faucet-outflow/FaucetOutflowModule';
+import { EthClaimNotificationClient, IEthClaimNotificationData } from './EthClaimNotificationClient.js';
+import { FaucetOutflowModule } from '../modules/faucet-outflow/FaucetOutflowModule.js';
 import { clearInterval } from 'timers';
+import { TransactionReceipt } from 'web3';
 
 export enum ClaimTxStatus {
   QUEUE = "queue",
@@ -59,7 +59,7 @@ export interface EthClaimData {
 
 export class EthClaimManager {
   private initialized: boolean;
-  private queueInterval: NodeJS.Timer;
+  private queueInterval: NodeJS.Timeout;
   private claimTxDict: {[session: string]: EthClaimInfo} = {};
   private claimTxQueue: EthClaimInfo[] = [];
   private pendingTxQueue: {[hash: string]: EthClaimInfo} = {};
@@ -178,7 +178,7 @@ export class EthClaimManager {
     if(claimInfo.claim.claimStatus === ClaimTxStatus.CONFIRMED) {
       let moduleManager = ServiceManager.GetService(ModuleManager);
       moduleManager.processActionHooks([], ModuleHookAction.SessionClaimed, [claimInfo]);
-      moduleManager.getModule<FaucetOutflowModule>("faucet-outflow")?.updateState(BigInt(claimInfo.claim.txFee));
+      moduleManager.getModule<FaucetOutflowModule>("faucet-outflow")?.updateState(null, BigInt(claimInfo.claim.txFee));
       ServiceManager.GetService(FaucetStatsLog).addClaimStats(claimInfo);
     }
     ServiceManager.GetService(FaucetDatabase).updateClaimData(claimInfo.session, claimInfo.claim);
@@ -189,8 +189,12 @@ export class EthClaimManager {
       throw new FaucetError("NOT_CLAIMABLE", "cannot claim session: not claimable (state: " + sessionData.status + ")");
     if(BigInt(sessionData.dropAmount) < BigInt(faucetConfig.minDropAmount))
       throw new FaucetError("AMOUNT_TOO_LOW", "drop amount lower than minimum");
-    if(BigInt(sessionData.dropAmount) > BigInt(faucetConfig.maxDropAmount))
-      sessionData.dropAmount = faucetConfig.maxDropAmount.toString();
+
+    let maxDropAmount = BigInt(faucetConfig.maxDropAmount);
+    if(sessionData.data["overrideMaxDropAmount"])
+      maxDropAmount = BigInt(sessionData.data["overrideMaxDropAmount"]);
+    if(BigInt(sessionData.dropAmount) > maxDropAmount)
+      sessionData.dropAmount = maxDropAmount.toString();
     
     let claimInfo: EthClaimInfo = {
       session: sessionData.sessionId,
@@ -322,16 +326,20 @@ export class EthClaimManager {
   }>) {
     // await transaction receipt
     txPromise.then((txData) => {
+      claimTx.claim.txFee = txData.fee.toString();
+      if(!txData.status) {
+        throw "transaction reverted";
+      }
+
       delete this.pendingTxQueue[claimTx.claim.txHash];
       delete this.claimTxDict[claimTx.session];
       claimTx.claim.txBlock = txData.block;
-      claimTx.claim.txFee = txData.fee.toString();
 
       this.lastConfirmedClaimTxIdx = claimTx.claim.claimIdx;
 
       claimTx.claim.claimStatus = ClaimTxStatus.CONFIRMED;
       this.updateClaimStatus(claimTx);
-    }, (error) => {
+    }).catch((error) => {
       ServiceManager.GetService(FaucetProcess).emitLog(FaucetLogLevel.WARNING, "Transaction for " + claimTx.target + " failed: " + error.toString());
       delete this.pendingTxQueue[claimTx.claim.txHash];
       delete this.claimTxDict[claimTx.session];

@@ -1,17 +1,17 @@
 import { WebSocket, RawData } from 'ws';
-import { PoWSession } from './PoWSession';
-import { ServiceManager } from '../../common/ServiceManager';
-import { PoWShareVerification } from './PoWShareVerification';
-import { FaucetProcess, FaucetLogLevel } from '../../common/FaucetProcess';
-import { FaucetStatsLog } from '../../services/FaucetStatsLog';
-import { FaucetSession } from '../../session/FaucetSession';
-import { PoWModule } from './PoWModule';
+import { PoWSession } from './PoWSession.js';
+import { ServiceManager } from '../../common/ServiceManager.js';
+import { PoWShareVerification } from './PoWShareVerification.js';
+import { FaucetProcess, FaucetLogLevel } from '../../common/FaucetProcess.js';
+import { FaucetStatsLog } from '../../services/FaucetStatsLog.js';
+import { FaucetSession } from '../../session/FaucetSession.js';
+import { PoWModule } from './PoWModule.js';
 
 export class PoWClient {
   private module: PoWModule;
   private socket: WebSocket;
   private session: PoWSession;
-  private pingTimer: NodeJS.Timer = null;
+  private pingTimer: NodeJS.Timeout = null;
   private lastPingPong: Date;
 
   public constructor(module: PoWModule, session: PoWSession, socket: WebSocket) {
@@ -162,22 +162,19 @@ export class PoWClient {
     
     let moduleConfig = this.module.getModuleConfig();
     let shareData: {
-      nonces: number[];
+      nonce: number;
+      data: string;
       params: string;
       hashrate: number;
     } = message.data;
 
     if(shareData.params !== this.module.getPoWParamsStr()) 
       return this.sendErrorResponse("INVALID_SHARE", "Invalid share params", message);
-    if(shareData.nonces.length !== moduleConfig.powNonceCount)
-      return this.sendErrorResponse("INVALID_SHARE", "Invalid nonce count", message);
     
     let lastNonce = this.session.lastNonce;
-    for(let i = 0; i < shareData.nonces.length; i++) {
-      if(shareData.nonces[i] <= lastNonce)
-        return this.sendErrorResponse("INVALID_SHARE", "Nonce too low", message);
-      lastNonce = shareData.nonces[i];
-    }
+    if(shareData.nonce <= lastNonce)
+      return this.sendErrorResponse("INVALID_SHARE", "Nonce too low", message);
+    lastNonce = shareData.nonce;
     this.session.lastNonce = lastNonce;
     if(shareData.hashrate) {
       let reportedHashRates = this.session.reportedHashrate;
@@ -196,7 +193,7 @@ export class PoWClient {
         return this.sendErrorResponse("HASHRATE_LIMIT", "Nonce too high (did you evade the hashrate limit?) " + sessionAge + "/" + nonceLimit, message);
     }
 
-    let shareVerification = new PoWShareVerification(this.module, this.session, shareData.nonces);
+    let shareVerification = new PoWShareVerification(this.module, this.session, shareData.nonce, shareData.data);
     shareVerification.startVerification().then((result) => {
       if(!result.isValid)
         this.sendErrorResponse("WRONG_SHARE", "Share verification failed", message);
@@ -225,8 +222,12 @@ export class PoWClient {
 
     let verifyRes: {
       shareId: string;
+      params?: string;
       isValid: boolean;
     } = message.data;
+
+    if(verifyRes.params && verifyRes.params !== this.module.getPoWParamsStr()) 
+      return this.sendErrorResponse("INVALID_VERIFYRESULT", "Invalid share params", message);
 
     let verifyValid = PoWShareVerification.processVerificationResult(verifyRes.shareId, this.getFaucetSession().getSessionId(), verifyRes.isValid);
     let verifyReward = BigInt(this.module.getModuleConfig().powShareReward) * BigInt(this.module.getModuleConfig().verifyMinerRewardPerc * 100) / 10000n;
