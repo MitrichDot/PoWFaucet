@@ -2,7 +2,7 @@ import path from 'path';
 import webpack from 'webpack';
 import wpmerge from 'webpack-merge';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
-import TerserPlugin from "terser-webpack-plugin";
+import MinimizerPlugin from "minimizer-webpack-plugin";
 import Visualizer from 'webpack-visualizer-plugin2';
 import cliArgs from './utils/CliArgs.js';
 import pkgJson from './package.json' with { type: 'json' };
@@ -104,7 +104,7 @@ var webpackBaseConfig = {
   optimization: debug ? undefined : {
     minimize: true,
     minimizer: [
-      new TerserPlugin({
+      new MinimizerPlugin({
         parallel: true,
         extractComments: {
           banner: '@pow-faucet-client: ' + JSON.stringify({
@@ -112,7 +112,7 @@ var webpackBaseConfig = {
             build: buildTime,
           }) + "\n",
         },
-        terserOptions: {
+        minimizerOptions: {
           compress: true,
           keep_fnames: false,
           mangle: true,
