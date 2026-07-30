@@ -1,7 +1,7 @@
 import { IFaucetConfig } from '../../common/FaucetConfig';
 import { FaucetConfigContext, FaucetPageContext } from '../FaucetPage';
 import React, { useContext } from 'react';
-import { useParams, useNavigate, NavigateFunction } from "react-router-dom";
+import { useParams, useNavigate, NavigateFunction } from "react-router";
 import { IFaucetContext } from '../../common/FaucetContext';
 import { FaucetSession, IFaucetSessionStatus } from '../../common/FaucetSession';
 import { toReadableAmount } from '../../utils/ConvertHelpers';

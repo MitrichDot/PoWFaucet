@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { HashRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, Link } from "react-router";
 
 import { FaucetApi } from '../common/FaucetApi';
 import { IFaucetConfig, IFaucetStatus } from '../common/FaucetConfig';

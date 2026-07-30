@@ -2,7 +2,7 @@ import { IFaucetConfig } from '../../common/FaucetConfig';
 import { FaucetConfigContext, FaucetPageContext } from '../FaucetPage';
 import React, { useContext } from 'react';
 import { Button, Collapse } from 'react-bootstrap'
-import { useParams, useNavigate, NavigateFunction } from "react-router-dom";
+import { useParams, useNavigate, NavigateFunction } from "react-router";
 import { IFaucetContext } from '../../common/FaucetContext';
 import { IFaucetSessionStatus } from '../../common/FaucetSession';
 import { toReadableAmount } from '../../utils/ConvertHelpers';

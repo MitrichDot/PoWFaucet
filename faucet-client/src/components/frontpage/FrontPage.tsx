@@ -1,7 +1,7 @@
 import { IFaucetConfig } from '../../common/FaucetConfig';
 import { FaucetConfigContext, FaucetPageContext } from '../FaucetPage';
 import React, { useContext } from 'react';
-import { useNavigate, NavigateFunction } from "react-router-dom";
+import { useNavigate, NavigateFunction } from "react-router";
 import { FaucetInput } from './FaucetInput';
 import { IFaucetContext } from '../../common/FaucetContext';
 import { FaucetSession } from '../../common/FaucetSession';

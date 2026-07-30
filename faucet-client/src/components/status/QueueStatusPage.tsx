@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { useNavigate, NavigateFunction } from "react-router-dom";
+import { useNavigate, NavigateFunction } from "react-router";
 import { toReadableAmount } from '../../utils/ConvertHelpers';
 import { IFaucetConfig } from '../../common/FaucetConfig';
 import { renderDate } from '../../utils/DateUtils';
