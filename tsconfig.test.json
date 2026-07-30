@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
-    "module": "ES2022",
+    "module": "esnext",
     "target": "ES2022",
-    "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
     "strict": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
