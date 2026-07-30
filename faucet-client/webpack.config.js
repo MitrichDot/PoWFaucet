@@ -24,7 +24,20 @@ var webpackModuleConfigs = [
       rules: [
         {
           test: /\.s?css$/,
-          use: [MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader']
+          use: [
+            MiniCssExtractPlugin.loader,
+            'css-loader',
+            {
+              loader: 'sass-loader',
+              options: {
+                // don't emit a BOM/@charset in the sass output: it ends up
+                // mid-file after bundling and invalidates the first selector
+                sassOptions: {
+                  charset: false
+                }
+              }
+            }
+          ]
         }
       ]
     },
@@ -89,7 +102,9 @@ var webpackBaseConfig = {
                 modules: false
               }],
               "@babel/preset-typescript",
-              "@babel/preset-react"
+              ["@babel/preset-react", {
+                development: debug
+              }]
             ],
             plugins: [
               "@babel/plugin-transform-class-properties",
